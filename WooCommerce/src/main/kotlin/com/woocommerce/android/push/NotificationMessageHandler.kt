@@ -9,7 +9,6 @@ import com.woocommerce.android.analytics.AnalyticsTracker.Stat.PUSH_NOTIFICATION
 import com.woocommerce.android.extensions.NotificationReceivedEvent
 import com.woocommerce.android.extensions.NotificationsUnseenReviewsEvent
 import com.woocommerce.android.model.Notification
-import com.woocommerce.android.model.isOrderNotification
 import com.woocommerce.android.model.toAppModel
 import com.woocommerce.android.support.ZendeskHelper
 import com.woocommerce.android.util.NotificationsParser
@@ -17,6 +16,7 @@ import com.woocommerce.android.util.WooLog.T.NOTIFS
 import com.woocommerce.android.util.WooLogWrapper
 import com.woocommerce.android.viewmodel.ResourceProvider
 import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
 import org.wordpress.android.fluxc.Dispatcher
 import org.wordpress.android.fluxc.generated.NotificationActionBuilder
 import org.wordpress.android.fluxc.generated.WCOrderActionBuilder
@@ -25,6 +25,7 @@ import org.wordpress.android.fluxc.model.notification.NotificationModel
 import org.wordpress.android.fluxc.network.rest.wpcom.wc.order.CoreOrderStatus
 import org.wordpress.android.fluxc.store.AccountStore
 import org.wordpress.android.fluxc.store.NotificationStore.FetchNotificationPayload
+import org.wordpress.android.fluxc.store.NotificationStore.OnNotificationChanged
 import org.wordpress.android.fluxc.store.SiteStore
 import org.wordpress.android.fluxc.store.WCOrderStore.FetchOrderListPayload
 import javax.inject.Inject
@@ -56,6 +57,10 @@ class NotificationMessageHandler @Inject constructor(
         private const val MAX_INBOX_ITEMS = 5
 
         private val ACTIVE_NOTIFICATIONS_MAP = mutableMapOf<Int, Notification>()
+    }
+
+    init {
+        dispatcher.register(this)
     }
 
     @Synchronized
@@ -96,36 +101,28 @@ class NotificationMessageHandler @Inject constructor(
             return
         }
 
-        val notificationModel = notificationsParser.buildNotificationModelFromPayloadMap(messageData)
-        if (notificationModel == null) {
-            wooLogWrapper.e(NOTIFS, "Notification data is empty!")
-            return
-        }
+        val notification = notificationsParser.buildNotificationModel(messageData, resourceProvider)
 
-        val notification = notificationModel.toAppModel(resourceProvider)
         if (notification.remoteNoteId == 0L) {
             // At this point 'note_id' is always available in the notification bundle.
             wooLogWrapper.e(NOTIFS, "Push notification received without a valid note_id in the payload!")
             return
         }
 
-        dispatchBackgroundEvents(notificationModel)
+        dispatchBackgroundEvents(notification)
         handleWooNotification(notification)
     }
 
-    private fun dispatchBackgroundEvents(notificationModel: NotificationModel) {
-        // Save temporary notification to the database.
-        dispatcher.dispatch(NotificationActionBuilder.newUpdateNotificationAction(notificationModel))
-
+    private fun dispatchBackgroundEvents(notification: Notification) {
         // Fire off the event to fetch the actual notification from the api
         dispatcher.dispatch(
             NotificationActionBuilder.newFetchNotificationAction(
-                FetchNotificationPayload(notificationModel.remoteNoteId)
+                FetchNotificationPayload(notification.remoteNoteId)
             )
         )
 
-        if (notificationModel.isOrderNotification()) {
-            siteStore.getSiteBySiteId(notificationModel.remoteSiteId)?.let { site ->
+        if (notification.noteType == WooNotificationType.NEW_ORDER) {
+            siteStore.getSiteBySiteId(notification.remoteSiteId)?.let { site ->
                 dispatcher.dispatch(
                     WCOrderActionBuilder.newFetchOrderListAction(
                         FetchOrderListPayload(offset = 0, listDescriptor = WCOrderListDescriptor(site = site))

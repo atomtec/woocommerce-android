@@ -3,7 +3,12 @@ package com.woocommerce.android.util
 import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.woocommerce.android.R
+import com.woocommerce.android.model.Notification
+import com.woocommerce.android.push.NotificationChannelType
+import com.woocommerce.android.push.WooNotificationType
 import com.woocommerce.android.util.WooLog.T
+import com.woocommerce.android.viewmodel.ResourceProvider
 import org.wordpress.android.fluxc.model.notification.NotificationModel
 import org.wordpress.android.fluxc.network.rest.wpcom.notifications.NotificationApiResponse
 import java.io.UnsupportedEncodingException
@@ -34,7 +39,8 @@ class NotificationsParser @Inject constructor(private val base64Decoder: Base64D
     /**
      * Takes a base64 encoded string and attempts to decode and parse out the containing notification object.
      */
-    @Synchronized private fun getNotificationJsonFromBase64EncodedData(base64FullNoteData: String): JsonObject? {
+    @Synchronized
+    private fun getNotificationJsonFromBase64EncodedData(base64FullNoteData: String): JsonObject? {
         val b64DecodedPayload = base64Decoder.decode(base64FullNoteData, Base64.DEFAULT)
 
         // Decompress the payload
@@ -71,6 +77,35 @@ class NotificationsParser @Inject constructor(private val base64Decoder: Base64D
                 WooLog.e(T.NOTIFICATIONS, message, e)
                 null
             }
+        )
+    }
+
+    fun buildNotificationModel(messageData: Map<String, String>, resourceProvider: ResourceProvider): Notification {
+        val notificationType = when (messageData["category"]) {
+            "store_order" -> WooNotificationType.NEW_ORDER
+            "comment" -> WooNotificationType.PRODUCT_REVIEW
+            else -> error("wrong type")
+        }
+        val channel = when (notificationType) {
+            WooNotificationType.NEW_ORDER -> NotificationChannelType.NEW_ORDER
+            WooNotificationType.PRODUCT_REVIEW -> NotificationChannelType.REVIEW
+            else -> NotificationChannelType.OTHER
+        }
+        val notificationTitle = when (notificationType) {
+            WooNotificationType.NEW_ORDER -> resourceProvider.getString(R.string.notification_order_title)
+            WooNotificationType.PRODUCT_REVIEW -> resourceProvider.getString(R.string.notification_review_title)
+            else -> ""
+        }
+        return Notification(
+            noteId = 0,
+            remoteNoteId = messageData["note_id"]!!.toLong(),
+            remoteSiteId = messageData["blog_id"]!!.toLong(),
+            icon = messageData["icon"]!!,
+            noteType = notificationType,
+            noteTitle = notificationTitle,
+            channelType = channel,
+            noteMessage = "",//TODO
+            uniqueId = 0L //TODO
         )
     }
 }
