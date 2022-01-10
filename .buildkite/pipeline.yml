@@ -1,0 +1,39 @@
+docker-container: &docker-container
+  plugins:
+    - docker#v3.8.0:
+        image: "public.ecr.aws/automattic/android-build-image:311ab824e9fd33ebb71de83c3fd1c328ea84443b"
+        environment:
+          - "CI=true"
+
+steps:
+  - label: "checkstyle"
+    <<: *docker-container
+    command: |
+      cp gradle.properties-example gradle.properties
+      ./gradlew checkstyle
+    artifact_paths:
+      - "**/build/reports/checkstyle/checkstyle.*"
+  - label: "detekt"
+    <<: *docker-container
+    command: |
+      cp gradle.properties-example gradle.properties
+      ./gradlew detekt
+    artifact_paths:
+      - "**/build/reports/detekt/detekt.html"
+  - label: "lint"
+    <<: *docker-container
+    command: |
+      cp gradle.properties-example gradle.properties
+      ./gradlew lintVanillaRelease
+    artifact_paths:
+      - "**/build/reports/lint-results*.*"
+  - label: "Test WooCommerce"
+    <<: *docker-container
+    command: |
+      cp gradle.properties-example gradle.properties
+      ./gradlew testVanillaRelease
+  - label: "Test CardReaderModule"
+    <<: *docker-container
+    command: |
+      cp gradle.properties-example gradle.properties
+      ./gradlew lib:cardreader:testRelease
