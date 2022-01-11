@@ -15,6 +15,9 @@ steps:
     command: |
       echo "--- 🧹 Linting"
       $PATH="$PATH:/var/lib/buildkite-agent/plugins/library_plugin_binaries"
+      ls /var/lib/buildkite-agent
+      ls /var/lib/buildkite-agent/plugins
+
       echo $PATH
       which restore_cache
       cp gradle.properties-example gradle.properties
@@ -58,4 +61,5 @@ steps:
     <<: *docker-container
     command: |
       echo "--- ⚒️ Building"
+      cp gradle.properties-example gradle.properties
       ./gradlew assembleVanillaDebugAndroidTest
