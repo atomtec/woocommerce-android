@@ -13,27 +13,41 @@ steps:
       ./gradlew checkstyle
     artifact_paths:
       - "**/build/reports/checkstyle/checkstyle.*"
+
   - label: "detekt"
     <<: *docker-container
     command: |
+      echo "--- 🧹 Linting"
       cp gradle.properties-example gradle.properties
-      ./gradlew detekt
+      ./gradlew detektAll
     artifact_paths:
       - "**/build/reports/detekt/detekt.html"
+
   - label: "lint"
     <<: *docker-container
     command: |
+      echo "--- 🧹 Linting"
       cp gradle.properties-example gradle.properties
       ./gradlew lintVanillaRelease
     artifact_paths:
       - "**/build/reports/lint-results*.*"
+
   - label: "Test WooCommerce"
     <<: *docker-container
     command: |
+      echo "--- 🧪 Testing"
       cp gradle.properties-example gradle.properties
       ./gradlew testVanillaRelease
+
   - label: "Test CardReaderModule"
     <<: *docker-container
     command: |
+      echo "--- 🧪 Testing"
       cp gradle.properties-example gradle.properties
       ./gradlew lib:cardreader:testRelease
+
+  - label: "Ensure Screenshot Tests Build"
+      <<: *docker-container
+    command: |
+      echo "--- ⚒️ Building"
+      /gradlew assembleVanillaDebugAndroidTest
