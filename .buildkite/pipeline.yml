@@ -14,6 +14,7 @@ steps:
     <<: *docker-container
     command: |
       echo "--- 🧹 Linting"
+      echo $PATH
       which restore_cache
       cp gradle.properties-example gradle.properties
       ./gradlew checkstyle
