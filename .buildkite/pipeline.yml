@@ -53,7 +53,7 @@ steps:
       ./gradlew lib:cardreader:testRelease
 
   - label: "Ensure Screenshot Tests Build"
-      <<: *docker-container
+    <<: *docker-container
     command: |
       echo "--- ⚒️ Building"
       /gradlew assembleVanillaDebugAndroidTest
