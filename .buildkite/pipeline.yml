@@ -14,11 +14,16 @@ steps:
     <<: *docker-container
     command: |
       echo "--- 🧹 Linting"
-      $PATH="$PATH:/var/lib/buildkite-agent/plugins/library_plugin_binaries"
+      echo "buildkite-agent"
       ls /var/lib/buildkite-agent
+
+      echo "buildkite-agent/plugin"
       ls /var/lib/buildkite-agent/plugins
 
-      echo $PATH
+      echo "updating path"
+      $PATH="$PATH:/var/lib/buildkite-agent/plugins/library_plugin_binaries"
+
+      # echo $PATH
       which restore_cache
       cp gradle.properties-example gradle.properties
       ./gradlew checkstyle
