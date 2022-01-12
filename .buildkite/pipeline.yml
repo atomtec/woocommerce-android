@@ -6,8 +6,8 @@ docker-container: &docker-container
         environment:
           - "CI=true"
           - "PATH=/var/lib/buildkite-agent/plugins/library_plugin_binaries:${PATH}"
-        volumes:
-          - "/var/lib/buildkite-agent/plugins:/var/lib/buildkite-agent/plugins"
+        # volumes:
+        #   - "/var/lib/buildkite-agent/plugins:/var/lib/buildkite-agent/plugins"
 
 steps:
   - label: "checkstyle"
