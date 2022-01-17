@@ -3,34 +3,16 @@ docker-container: &docker-container
     - automattic/bash-cache#fix/docker-support
     - docker#v3.8.0:
         image: "public.ecr.aws/automattic/android-build-image:311ab824e9fd33ebb71de83c3fd1c328ea84443b"
-        environment: [ "CACHE_BUCKET_NAME", "BUILDKITE_PIPELINE_SLUG", "BUILDKITE_LABEL" ]
         propagate-environment: true
+        environment: 
+          - CACHE_BUCKET_NAME
         volumes:
          - "/var/lib/buildkite-agent/plugins/bash-cache:/bash-cache"
 
 steps:
   - label: "checkstyle"
     <<: *docker-container
-    command: |
-      echo "--- ⤵️ Installing Bash Cache Plugin"
-      cp -v /bash-cache/bin/* /usr/bin
-
-      echo "---"
-      echo $BUILDKITE_PLUGIN_BASH_CACHE_BUCKET
-      echo "---"
-
-      CACHEKEY="$BUILDKITE_PIPELINE_SLUG-$BUILDKITE_LABEL"
-
-      echo "--- 🧹 Linting"
-
-      restore_cache "$CACHEKEY"
-
-      cp -v gradle.properties-example gradle.properties
-      ./gradlew checkstyle
-
-      save_cache /root/.android $CACHEKEY
-      ls /root
-      ls /root/.android
+    command: ".buildkite/commands/checkstyle.sh"
     artifact_paths:
       - "**/build/reports/checkstyle/checkstyle.*"
 
