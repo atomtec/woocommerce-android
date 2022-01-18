@@ -12,7 +12,10 @@ docker-container: &docker-container
 steps:
   - label: "checkstyle"
     <<: *docker-container
-    command: ".buildkite/commands/checkstyle.sh"
+    command: |
+      echo "--- 🧹 Linting"
+      cp -v gradle.properties-example gradle.properties
+      ./gradlew checkstyle
     artifact_paths:
       - "**/build/reports/checkstyle/checkstyle.*"
 
