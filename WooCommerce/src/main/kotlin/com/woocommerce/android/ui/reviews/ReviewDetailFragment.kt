@@ -13,6 +13,7 @@ import android.widget.CompoundButton.OnCheckedChangeListener
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.fragment.app.viewModels
+import androidx.hilt.navigation.fragment.hiltNavGraphViewModels
 import androidx.lifecycle.Observer
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
@@ -56,12 +57,15 @@ class ReviewDetailFragment : BaseFragment(R.layout.fragment_review_detail) {
 
     private val viewModel: ReviewDetailViewModel by viewModels()
 
+    private val reviewModerationViewModel : ReviewModerationViewModel  by hiltNavGraphViewModels(R.id.nav_graph_main)
+
     private var runOnStartFunc: (() -> Unit)? = null
     private var productIconSize: Int = 0
     private val skeletonView = SkeletonView()
 
     private var _binding: FragmentReviewDetailBinding? = null
     private val binding get() = _binding!!
+    private var selectedReview:ProductReview? = null;
 
     private val navArgs: ReviewDetailFragmentArgs by navArgs()
 
@@ -156,6 +160,15 @@ class ReviewDetailFragment : BaseFragment(R.layout.fragment_review_detail) {
                 }
             }
         )
+        viewModel.moderateProductReviewEvent.observe(
+            viewLifecycleOwner,
+            Observer {
+                it?.let {
+                    reviewModerationViewModel.moderateReviewRequest(it)
+                }
+
+            }
+        )
     }
 
     private fun setReview(review: ProductReview) {
@@ -204,6 +217,7 @@ class ReviewDetailFragment : BaseFragment(R.layout.fragment_review_detail) {
 
         // Initialize the moderation buttons and set review status
         configureModerationButtons(ProductReviewStatus.fromString(review.status))
+        selectedReview = review
     }
 
     private fun refreshProductImage(remoteProductId: Long) {

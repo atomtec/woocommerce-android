@@ -1,6 +1,7 @@
 package com.woocommerce.android.ui.reviews
 
 import android.os.Parcelable
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.SavedStateHandle
 import com.woocommerce.android.R
 import com.woocommerce.android.analytics.AnalyticsTracker
@@ -16,6 +17,7 @@ import com.woocommerce.android.viewmodel.MultiLiveEvent.Event
 import com.woocommerce.android.viewmodel.MultiLiveEvent.Event.Exit
 import com.woocommerce.android.viewmodel.MultiLiveEvent.Event.ShowSnackbar
 import com.woocommerce.android.viewmodel.ScopedViewModel
+import com.woocommerce.android.viewmodel.SingleLiveEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
@@ -33,6 +35,9 @@ class ReviewDetailViewModel @Inject constructor(
     val viewStateData = LiveDataDelegate(savedState, ViewState())
     private var viewState by viewStateData
 
+    private val _moderateProductReviewEvent = SingleLiveEvent<OnRequestModerateReviewEvent?>()
+    val moderateProductReviewEvent: LiveData<OnRequestModerateReviewEvent?> = _moderateProductReviewEvent
+
     fun start(remoteReviewId: Long, launchedFromNotification: Boolean) {
         loadProductReview(remoteReviewId, launchedFromNotification)
     }
@@ -45,7 +50,7 @@ class ReviewDetailViewModel @Inject constructor(
                 val event = OnRequestModerateReviewEvent(
                     ProductReviewModerationRequest(review, newStatus)
                 )
-                EventBus.getDefault().post(event)
+                _moderateProductReviewEvent.value = event
 
                 // Close the detail view
                 triggerEvent(Exit)

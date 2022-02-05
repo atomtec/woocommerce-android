@@ -11,6 +11,7 @@ import androidx.core.view.ViewGroupCompat
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
+import androidx.hilt.navigation.fragment.hiltNavGraphViewModels
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
@@ -48,6 +49,7 @@ import javax.inject.Inject
 class ReviewListFragment :
     TopLevelFragment(R.layout.fragment_reviews_list),
     ItemDecorationListener,
+    ProductReviewModerationHandler,
     ReviewListAdapter.OnReviewClickListener {
     companion object {
         const val TAG = "ReviewListFragment"
@@ -66,12 +68,13 @@ class ReviewListFragment :
 
     private val viewModel: ReviewListViewModel by viewModels()
 
+    private val reviewModerationViewModel : ReviewModerationViewModel  by hiltNavGraphViewModels(R.id.nav_graph_main)
+
     private val skeletonView = SkeletonView()
     private var menuMarkAllRead: MenuItem? = null
 
-    private var pendingModerationRequest: ProductReviewModerationRequest? = null
-    private var pendingModerationRemoteReviewId: Long? = null
-    private var pendingModerationNewStatus: String? = null
+
+
     private var changeReviewStatusSnackbar: Snackbar? = null
 
     private var _binding: FragmentReviewsListBinding? = null
@@ -138,6 +141,7 @@ class ReviewListFragment :
         }
 
         setupObservers()
+        setUpReviewModerationObserver()
         viewModel.start()
     }
 
@@ -168,9 +172,44 @@ class ReviewListFragment :
         AnalyticsTracker.trackViewShown(this)
     }
 
+    override fun setUpReviewModerationObserver() {
+        reviewModerationViewModel.event.observe(
+            viewLifecycleOwner,
+            Observer { event ->
+                when (event) {
+                    is ShowSnackbar -> uiMessageResolver.showSnack(event.message)
+                }
+            }
+        )
+
+        reviewModerationViewModel.moderateProductReview.observe(
+            viewLifecycleOwner,
+            Observer {
+                if (reviewsAdapter.isEmpty()) {
+                    reviewModerationViewModel.pendingModerationRequest = it
+                } else {
+                    it?.let { request -> handleReviewModerationRequest(request) }
+                }
+            }
+        )
+
+        reviewModerationViewModel.showRefresh.observe(
+            viewLifecycleOwner,
+            Observer {
+                binding.notifsRefreshLayout.isRefreshing = it
+            }
+        )
+
+        reviewModerationViewModel.showRefresh.observe(
+            viewLifecycleOwner,
+            Observer {
+                binding.notifsRefreshLayout.isRefreshing = it
+            }
+        )
+    }
+
     override fun onStop() {
         super.onStop()
-
         changeReviewStatusSnackbar?.dismiss()
     }
 
@@ -201,28 +240,15 @@ class ReviewListFragment :
             }
         )
 
-        viewModel.moderateProductReview.observe(
-            viewLifecycleOwner,
-            Observer {
-                if (reviewsAdapter.isEmpty()) {
-                    pendingModerationRequest = it
-                } else {
-                    it?.let { request -> handleReviewModerationRequest(request) }
-                }
-            }
-        )
-
         viewModel.reviewList.observe(
             viewLifecycleOwner,
             Observer {
                 showReviewList(it)
-                pendingModerationRequest?.let {
-                    handleReviewModerationRequest(it)
-                    pendingModerationRequest = null
-                }
+                checkPendingReviewModerationRequest()
             }
         )
     }
+
 
     private fun handleMarkAllAsReadEvent(status: ActionStatus) {
         when (status) {
@@ -286,10 +312,9 @@ class ReviewListFragment :
         }
     }
 
-    private fun processNewModerationRequest(request: ProductReviewModerationRequest) {
+    override fun processNewModerationRequest(request: ProductReviewModerationRequest) {
         with(request) {
-            pendingModerationRemoteReviewId = productReview.remoteId
-            pendingModerationNewStatus = newStatus.toString()
+
 
             var changeReviewStatusCanceled = false
 
@@ -308,7 +333,7 @@ class ReviewListFragment :
                 override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                     super.onDismissed(transientBottomBar, event)
                     if (!changeReviewStatusCanceled) {
-                        viewModel.submitReviewStatusChange(productReview, newStatus)
+                        reviewModerationViewModel.submitReviewStatusChange(request)
                     }
                 }
             }
@@ -334,20 +359,26 @@ class ReviewListFragment :
         }
     }
 
+    override fun checkPendingReviewModerationRequest(){
+        reviewModerationViewModel.pendingModerationRequest?.let {
+            handleReviewModerationRequest(it)
+            reviewModerationViewModel.pendingModerationRequest = null
+        }
+    }
+
     private fun removeProductReviewFromList(remoteReviewId: Long) {
         reviewsAdapter.hideReviewWithId(remoteReviewId)
     }
 
     private fun resetPendingModerationVariables() {
-        pendingModerationNewStatus = null
-        pendingModerationRemoteReviewId = null
+        reviewModerationViewModel.resetPendingModerationVariables()
         reviewsAdapter.resetPendingModerationState()
     }
 
-    private fun revertPendingModerationState() {
+    override fun revertPendingModerationState() {
         AnalyticsTracker.track(Stat.REVIEW_ACTION_UNDO)
 
-        pendingModerationNewStatus?.let {
+        reviewModerationViewModel.pendingModerationNewStatus?.let {
             val status = ProductReviewStatus.fromString(it)
             if (status == SPAM || status == TRASH) {
                 val itemPos = reviewsAdapter.revertHiddenReviewAndReturnPos()
@@ -375,14 +406,14 @@ class ReviewListFragment :
                     review.remoteId,
                     launchedFromNotification = false,
                     enableModeration = true,
-                    tempStatus = pendingModerationNewStatus
+                    tempStatus = reviewModerationViewModel.pendingModerationNewStatus
                 )
             } else {
                 router.showReviewDetailWithSharedTransition(
                     review.remoteId,
                     launchedFromNotification = false,
                     enableModeration = true,
-                    tempStatus = pendingModerationNewStatus,
+                    tempStatus = reviewModerationViewModel.pendingModerationNewStatus,
                     sharedView = sharedView
                 )
             }

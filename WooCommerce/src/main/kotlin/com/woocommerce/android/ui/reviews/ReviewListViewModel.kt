@@ -51,8 +51,7 @@ class ReviewListViewModel @Inject constructor(
     companion object {
         private const val TAG = "ReviewListViewModel"
     }
-    private val _moderateProductReview = SingleLiveEvent<ProductReviewModerationRequest?>()
-    val moderateProductReview: LiveData<ProductReviewModerationRequest?> = _moderateProductReview
+
 
     private val _reviewList = MutableLiveData<List<ProductReview>>()
     val reviewList: LiveData<List<ProductReview>> = _reviewList
@@ -147,39 +146,6 @@ class ReviewListViewModel @Inject constructor(
         }
     }
 
-    // region Review Moderation
-    fun submitReviewStatusChange(review: ProductReview, newStatus: ProductReviewStatus) {
-        if (networkStatus.isConnected()) {
-            val payload = UpdateProductReviewStatusPayload(
-                selectedSite.get(),
-                review.remoteId,
-                newStatus.toString()
-            )
-            dispatcher.dispatch(WCProductActionBuilder.newUpdateProductReviewStatusAction(payload))
-
-            AnalyticsTracker.track(
-                Stat.REVIEW_ACTION,
-                mapOf(AnalyticsTracker.KEY_TYPE to newStatus.toString())
-            )
-
-            sendReviewModerationUpdate(ActionStatus.SUBMITTED)
-        } else {
-            // Network is not connected
-            showOfflineSnack()
-            sendReviewModerationUpdate(ActionStatus.ERROR)
-        }
-    }
-
-    private fun sendReviewModerationUpdate(newRequestStatus: ActionStatus) {
-        _moderateProductReview.value = _moderateProductReview.value?.apply { actionStatus = newRequestStatus }
-
-        // If the request has been completed, set the event to null to prevent issues later.
-        if (newRequestStatus.isComplete()) {
-            _moderateProductReview.value = null
-        }
-    }
-    // endregion
-
     private suspend fun fetchReviewList(loadMore: Boolean) {
         if (networkStatus.isConnected()) {
             when (reviewRepository.fetchProductReviews(loadMore)) {
@@ -225,18 +191,7 @@ class ReviewListViewModel @Inject constructor(
         }
     }
 
-    @Suppress("unused")
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onEventMainThread(event: OnRequestModerateReviewEvent) {
-        if (networkStatus.isConnected()) {
-            // Send the request to the UI to show the UNDO snackbar
-            viewState = viewState.copy(isRefreshing = true)
-            _moderateProductReview.value = event.request
-        } else {
-            // Network not connected
-            showOfflineSnack()
-        }
-    }
+
 
     @SuppressWarnings("unused")
     @Subscribe(threadMode = ThreadMode.MAIN)
@@ -245,9 +200,9 @@ class ReviewListViewModel @Inject constructor(
             if (event.isError) {
                 // Show an error in the UI and reload the view
                 triggerEvent(ShowSnackbar(R.string.wc_moderate_review_error))
-                sendReviewModerationUpdate(ActionStatus.ERROR)
+                //sendReviewModerationUpdate(ActionStatus.ERROR)
             } else {
-                sendReviewModerationUpdate(ActionStatus.SUCCESS)
+                //sendReviewModerationUpdate(ActionStatus.SUCCESS)
                 reloadReviewsFromCache()
             }
         }
