@@ -5,14 +5,12 @@ import com.woocommerce.android.extensions.*
 import com.woocommerce.android.model.Order.*
 import com.woocommerce.android.ui.products.ProductHelper
 import com.woocommerce.android.util.AddressUtils
-import com.woocommerce.android.util.StringUtils
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import org.wordpress.android.fluxc.model.LocalOrRemoteId
-import org.wordpress.android.fluxc.model.WCOrderModel
 import org.wordpress.android.fluxc.model.WCOrderStatusModel
+import org.wordpress.android.fluxc.model.order.TaxLine
 import org.wordpress.android.fluxc.network.rest.wpcom.wc.order.CoreOrderStatus
-import org.wordpress.android.util.DateTimeUtils
 import java.math.BigDecimal
 import java.util.*
 
@@ -48,6 +46,7 @@ data class Order(
     val items: List<Item>,
     val shippingLines: List<ShippingLine>,
     val feesLines: List<FeeLine>,
+    val taxLines: List<TaxLine>,
     val metaData: List<MetaData<String>>
 ) : Parcelable {
     @Deprecated(replaceWith = ReplaceWith("id"), message = "Use id to identify order.")
@@ -63,6 +62,10 @@ data class Order(
 
     @IgnoredOnParcel
     val isRefundAvailable = refundTotal < total && availableRefundQuantity > 0
+
+    @IgnoredOnParcel
+    val chargeId
+        get() = metaData.firstOrNull { it.key == "_charge_id" }?.value
 
     @Parcelize
     data class ShippingMethod(
@@ -97,6 +100,12 @@ data class Order(
 
         @IgnoredOnParcel
         val isVariation: Boolean = variationId != 0L
+
+        @IgnoredOnParcel
+        val pricePreDiscount = if (quantity == 0f) BigDecimal.ZERO else subtotal / quantity.toBigDecimal()
+
+        @IgnoredOnParcel
+        val discount = subtotal - total
 
         @IgnoredOnParcel
         var containsAddons = false
@@ -186,6 +195,14 @@ data class Order(
         val totalTax: BigDecimal,
     ) : Parcelable
 
+    @Parcelize
+    data class TaxLine(
+        val id: Long,
+        val compound: Boolean,
+        val taxTotal: String,
+        val ratePercent: Float
+    ) : Parcelable
+
     fun getBillingName(defaultValue: String): String {
         return when {
             billingAddress.firstName.isEmpty() && billingAddress.lastName.isEmpty() -> defaultValue
@@ -197,7 +214,7 @@ data class Order(
     fun formatBillingInformationForDisplay(): String {
         val billingName = getBillingName("")
         val billingAddress = this.billingAddress.getEnvelopeAddress()
-        val billingCountry = AddressUtils.getCountryLabelByCountryCode(this.billingAddress.country)
+        val billingCountry = AddressUtils.getCountryLabelByCountryCode(this.billingAddress.country.code)
         return this.billingAddress.getFullAddress(
             billingName, billingAddress, billingCountry
         )
@@ -206,7 +223,7 @@ data class Order(
     fun formatShippingInformationForDisplay(): String {
         val shippingName = "${shippingAddress.firstName} ${shippingAddress.lastName}"
         val shippingAddress = this.shippingAddress.getEnvelopeAddress()
-        val shippingCountry = AddressUtils.getCountryLabelByCountryCode(this.shippingAddress.country)
+        val shippingCountry = AddressUtils.getCountryLabelByCountryCode(this.shippingAddress.country.code)
         return this.shippingAddress.getFullAddress(
             shippingName, shippingAddress, shippingCountry
         )
@@ -295,115 +312,11 @@ data class Order(
                 items = emptyList(),
                 shippingLines = emptyList(),
                 metaData = emptyList(),
-                feesLines = emptyList()
+                feesLines = emptyList(),
+                taxLines = emptyList()
             )
         }
     }
-}
-
-fun WCOrderModel.toAppModel(): Order {
-    @Suppress("DEPRECATION_ERROR")
-    return Order(
-        rawLocalOrderId = this.id,
-        id = this.remoteOrderId.value,
-        number = this.number,
-        dateCreated = DateTimeUtils.dateUTCFromIso8601(this.dateCreated) ?: Date(),
-        dateModified = DateTimeUtils.dateUTCFromIso8601(this.dateModified) ?: Date(),
-        datePaid = DateTimeUtils.dateUTCFromIso8601(this.datePaid),
-        status = Status.fromValue(status),
-        total = this.total.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-        productsTotal = this.getOrderSubtotal().toBigDecimal(),
-        totalTax = this.totalTax.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-        shippingTotal = this.shippingTotal.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-        discountTotal = this.discountTotal.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-        refundTotal = -this.refundTotal, // WCOrderModel.refundTotal is NEGATIVE
-        feesTotal = this.getFeeLineList()
-            .sumByBigDecimal { it.total?.toBigDecimalOrNull() ?: BigDecimal.ZERO },
-        currency = this.currency,
-        orderKey = this.orderKey,
-        customerNote = this.customerNote,
-        discountCodes = this.discountCodes,
-        paymentMethod = this.paymentMethod,
-        paymentMethodTitle = this.paymentMethodTitle,
-        isCashPayment = CASH_PAYMENTS.contains(this.paymentMethod),
-        pricesIncludeTax = this.pricesIncludeTax,
-        multiShippingLinesAvailable = this.isMultiShippingLinesAvailable(),
-        billingAddress = this.getBillingAddress().let {
-            Address(
-                it.company,
-                it.firstName,
-                it.lastName,
-                this.billingPhone,
-                it.country,
-                it.state,
-                it.address1,
-                it.address2,
-                it.city,
-                it.postcode,
-                this.billingEmail
-            )
-        },
-        shippingAddress = this.getShippingAddress().let {
-            Address(
-                it.company,
-                it.firstName,
-                it.lastName,
-                it.phone,
-                it.country,
-                it.state,
-                it.address1,
-                it.address2,
-                it.city,
-                it.postcode,
-                ""
-            )
-        },
-        shippingMethods = getShippingLineList().filter { it.methodId != null && it.methodTitle != null }.map {
-            ShippingMethod(
-                it.methodId!!,
-                it.methodTitle!!,
-                it.total?.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-                it.totalTax?.toBigDecimalOrNull() ?: BigDecimal.ZERO
-            )
-        },
-        items = getLineItemList()
-            .filter { it.productId != null && it.id != null }
-            .map {
-                Item(
-                    it.id!!,
-                    it.productId!!,
-                    it.parentName?.fastStripHtml() ?: it.name?.fastStripHtml() ?: StringUtils.EMPTY,
-                    it.price?.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-                    it.sku ?: "",
-                    it.quantity ?: 0f,
-                    it.subtotal?.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-                    it.totalTax?.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-                    it.total?.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-                    it.variationId ?: 0,
-                    it.getAttributeList().map { attribute ->
-                        Item.Attribute(attribute.key.orEmpty(), attribute.value.orEmpty())
-                    }
-                )
-            },
-        shippingLines = getShippingLineList().map {
-            ShippingLine(
-                it.id!!,
-                it.methodId ?: StringUtils.EMPTY,
-                it.methodTitle ?: StringUtils.EMPTY,
-                it.totalTax?.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-                it.total?.toBigDecimalOrNull() ?: BigDecimal.ZERO
-            )
-        },
-        feesLines = this.getFeeLineList().map {
-            FeeLine(
-                id = it.id!!,
-                name = it.name ?: StringUtils.EMPTY,
-                totalTax = it.totalTax?.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-                total = it.total?.toBigDecimalOrNull() ?: BigDecimal.ZERO,
-            )
-        },
-        metaData = getMetaDataList().mapNotNull { it.toAppModel() }
-    )
 }
 
 fun WCOrderStatusModel.toOrderStatus(): OrderStatus {
