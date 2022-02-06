@@ -193,19 +193,13 @@ class ReviewListFragment :
             }
         )
 
-        reviewModerationViewModel.showRefresh.observe(
-            viewLifecycleOwner,
-            Observer {
+        reviewModerationViewModel.viewStateData.observe(viewLifecycleOwner) { old, new ->
+            new.isRefreshing?.takeIfNotEqualTo(old?.isRefreshing) {
                 binding.notifsRefreshLayout.isRefreshing = it
             }
-        )
-
-        reviewModerationViewModel.showRefresh.observe(
-            viewLifecycleOwner,
-            Observer {
-                binding.notifsRefreshLayout.isRefreshing = it
-            }
-        )
+            new.isReviewUpdateSuccessfull?.takeIfNotEqualTo(old?.isReviewUpdateSuccessfull)
+            { if(it) viewModel.reloadReviewsFromCache() }//reloadcache as the
+        }
     }
 
     override fun onStop() {
@@ -377,7 +371,7 @@ class ReviewListFragment :
 
     override fun revertPendingModerationState() {
         AnalyticsTracker.track(Stat.REVIEW_ACTION_UNDO)
-
+        reviewModerationViewModel.revertPendingModerationState()
         reviewModerationViewModel.pendingModerationNewStatus?.let {
             val status = ProductReviewStatus.fromString(it)
             if (status == SPAM || status == TRASH) {
