@@ -197,8 +197,9 @@ class ReviewListFragment :
             new.isRefreshing?.takeIfNotEqualTo(old?.isRefreshing) {
                 binding.notifsRefreshLayout.isRefreshing = it
             }
-            new.isReviewUpdateSuccessfull?.takeIfNotEqualTo(old?.isReviewUpdateSuccessfull)
-            { if(it) viewModel.reloadReviewsFromCache() }//reloadcache as the
+            new.isReviewUpdateSuccessfull?.let {
+                if(it)viewModel.reloadReviewsFromCache()
+            }
         }
     }
 

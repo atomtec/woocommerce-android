@@ -2,12 +2,10 @@ package com.woocommerce.android.ui.reviews
 
 import android.os.Parcelable
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import com.woocommerce.android.R
 import com.woocommerce.android.analytics.AnalyticsTracker
 import com.woocommerce.android.model.ActionStatus
-import com.woocommerce.android.model.ProductReview
 import com.woocommerce.android.tools.NetworkStatus
 import com.woocommerce.android.tools.SelectedSite
 import com.woocommerce.android.viewmodel.LiveDataDelegate
@@ -17,9 +15,7 @@ import com.woocommerce.android.viewmodel.SingleLiveEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
-import org.greenrobot.eventbus.EventBus
 import org.wordpress.android.fluxc.Dispatcher
-import org.wordpress.android.fluxc.generated.WCProductActionBuilder
 import org.wordpress.android.fluxc.store.WCProductStore
 import javax.inject.Inject
 
@@ -57,8 +53,8 @@ class ReviewModerationViewModel @Inject constructor(
                 request.productReview.remoteId,
                 request.newStatus.toString()
             )
-            /*launch {
-                var onReviewChanged = wcProductStore.updateProductReviewStatusSuspend(payload)
+            launch {
+                var onReviewChanged = wcProductStore.updateProductReviewStatus(payload)
                 viewState = viewState.copy(isRefreshing = false)
                 if(onReviewChanged.isError) {
                     triggerEvent(MultiLiveEvent.Event.ShowSnackbar(R.string.wc_moderate_review_error))
@@ -70,9 +66,9 @@ class ReviewModerationViewModel @Inject constructor(
                     sendReviewModerationUpdate(ActionStatus.SUCCESS)
                 }
 
-            }*/
+            }
 
-            dispatcher.dispatch(WCProductActionBuilder.newUpdateProductReviewStatusAction(payload))
+            //dispatcher.dispatch(WCProductActionBuilder.newUpdateProductReviewStatusAction(payload))
 
 
             AnalyticsTracker.track(

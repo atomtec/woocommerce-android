@@ -199,11 +199,11 @@ class ReviewListViewModel @Inject constructor(
         if (event.causeOfChange == UPDATE_PRODUCT_REVIEW_STATUS) {
             if (event.isError) {
                 // Show an error in the UI and reload the view
-                triggerEvent(ShowSnackbar(R.string.wc_moderate_review_error))
+                //triggerEvent(ShowSnackbar(R.string.wc_moderate_review_error))
                 //sendReviewModerationUpdate(ActionStatus.ERROR)
             } else {
                 //sendReviewModerationUpdate(ActionStatus.SUCCESS)
-                reloadReviewsFromCache()
+                //reloadReviewsFromCache()
             }
         }
     }
